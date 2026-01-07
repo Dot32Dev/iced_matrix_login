@@ -12,18 +12,26 @@ const TEXTBOX_WIDTH: f32 = 200.0;
 
 #[derive(Default)]
 struct Counter {
-    value: i32,
+    hostname: String,
+    username: String,
+    password: String,
+    password_visible: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     Increment,
     Decrement,
+    HostnameInput(String),
+    HostnameSubmit,
+    UsernameInput(String),
+    PasswordInput(String),
+    ToggleHiddenPassword,
 }
 
 fn main() -> iced::Result {
     // let base_theme = Theme::;
-    iced::application(Counter::default, Counter::update, Counter::view)
+    iced::application(Counter::new, Counter::update, Counter::view)
         .title("Iced Matrix Login Test")
         .window_size(Size::new(800.0, 600.0))
         .theme(Theme::Dark)
@@ -31,14 +39,30 @@ fn main() -> iced::Result {
 }
 
 impl Counter {
+    pub fn new() -> Self {
+        Self {
+            hostname: String::from("matrix.org"),
+            username: String::new(),
+            password: String::new(),
+            password_visible: false,
+        }
+    }
+
     pub fn update(&mut self, message: Message) {
         match message {
-            Message::Increment => {
-                self.value += 1;
+            Message::HostnameInput(string) => {
+                self.hostname = string;
             }
-            Message::Decrement => {
-                self.value -= 1;
+            Message::UsernameInput(string) => {
+                self.username = string;
             }
+            Message::PasswordInput(string) => {
+                self.password = string;
+            }
+            Message::ToggleHiddenPassword => {
+                self.password_visible = !self.password_visible;
+            }
+            _ => (),
         }
     }
 
@@ -48,7 +72,8 @@ impl Counter {
             center_x(text("Login").size(20)),
             row![
                 text("Homeserver:").size(FONT_SIZE).width(LABEL_WIDTH),
-                text_input("matrix.org", "matrix.org")
+                text_input("Homeserver", &self.hostname)
+                    .on_input(Message::HostnameInput)
                     .size(FONT_SIZE)
                     .width(TEXTBOX_WIDTH),
                 button(
@@ -58,7 +83,7 @@ impl Counter {
                     ))
                     .width(14)
                 )
-                .on_press(Message::Increment),
+                .on_press(Message::HostnameSubmit),
             ]
             .spacing(10)
             .align_y(Alignment::Center),
@@ -66,7 +91,8 @@ impl Counter {
             center_x(text("Login with password:").size(FONT_SIZE)),
             row![
                 text("Username:").size(FONT_SIZE).width(LABEL_WIDTH),
-                text_input("Username", "")
+                text_input("Username", &self.username)
+                    .on_input(Message::UsernameInput)
                     .size(FONT_SIZE)
                     .width(TEXTBOX_WIDTH)
             ]
@@ -74,14 +100,16 @@ impl Counter {
             .align_y(Alignment::Center),
             row![
                 text("Password:").size(FONT_SIZE).width(LABEL_WIDTH),
-                text_input("Password", "")
+                text_input("Password", &self.password)
+                    .on_input(Message::PasswordInput)
                     .size(FONT_SIZE)
+                    .secure(!self.password_visible)
                     .width(TEXTBOX_WIDTH),
                 button(
                     image(concat!(env!("CARGO_MANIFEST_DIR"), "/res/eye.png"))
                         .width(14)
                 )
-                .on_press(Message::Increment)
+                .on_press(Message::ToggleHiddenPassword)
             ]
             .spacing(10)
             .align_y(Alignment::Center),
@@ -95,14 +123,6 @@ impl Counter {
                 button(text("Open in browser").size(FONT_SIZE))
                     .on_press(Message::Increment)
             ),
-            // The increment button. We tell it to produce an
-            // `Increment` message when pressed
-            // button("+").on_press(Message::Increment),
-            // We show the value of the counter here
-            // text(self.value).size(50),
-            // The decrement button. We tell it to produce a
-            // `Decrement` message when pressed
-            // button("-").on_press(Message::Decrement),
         ]
         .max_width(MODAL_WIDTH)
         .height(MODAL_HEIGHT)
