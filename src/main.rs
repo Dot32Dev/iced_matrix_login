@@ -2,7 +2,7 @@ use iced::widget::{
     button, center_x, center_y, column, container, row, rule, scrollable, text,
     text_input,
 };
-use iced::{Alignment, Background, Color, Element, Length, Size};
+use iced::{Alignment, Background, Color, Element, Length, Size, Theme};
 
 #[derive(Default)]
 struct Counter {
@@ -16,9 +16,11 @@ pub enum Message {
 }
 
 fn main() -> iced::Result {
+    // let base_theme = Theme::;
     iced::application(Counter::default, Counter::update, Counter::view)
         .title("Iced Matrix Login Test")
-        .window_size(Size::new(800.0, 600.0)) // Set initial size here
+        .window_size(Size::new(800.0, 600.0))
+        .theme(Theme::Dark)
         .run()
 }
 
@@ -84,16 +86,16 @@ impl Counter {
         .padding(10)
         .into();
 
-        center_x(center_y(container(
+        container(center_x(center_y(container(
             container(scrollable(content))
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .style(|theme| {
                     let palette = theme.extended_palette();
                     container::Style {
-                        background: Some(Background::Color(Color::from_rgb8(
-                            30, 30, 30,
-                        ))),
+                        background: Some(Background::Color(
+                            palette.background.base.color,
+                        )),
                         border: iced::Border {
                             radius: 5.0.into(),
                             width: 1.0,
@@ -102,7 +104,13 @@ impl Counter {
                         ..Default::default()
                     }
                 }),
-        )))
+        ))))
+        .style(|_theme| container::Style {
+            background: Some(Background::Color(Color::from_linear_rgba(
+                0.0, 0.0, 0.0, 0.2,
+            ))),
+            ..Default::default()
+        })
         .into()
     }
 }
