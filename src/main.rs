@@ -1,8 +1,14 @@
 use iced::widget::{
-    button, center_x, center_y, column, container, row, rule, scrollable, text,
-    text_input,
+    button, center_x, center_y, column, container, image, row, rule,
+    scrollable, text, text_input,
 };
 use iced::{Alignment, Background, Color, Element, Length, Size, Theme};
+
+const FONT_SIZE: u32 = 13;
+const MODAL_WIDTH: f32 = 350.0;
+const MODAL_HEIGHT: f32 = 370.0;
+const LABEL_WIDTH: f32 = 75.0;
+const TEXTBOX_WIDTH: f32 = 200.0;
 
 #[derive(Default)]
 struct Counter {
@@ -41,34 +47,52 @@ impl Counter {
         let content: Element<_> = column![
             center_x(text("Login").size(20)),
             row![
-                text("Homeserver:").size(12),
-                text_input("matrix.org", "matrix.org").size(12),
-                button(text("🔍").size(12)).on_press(Message::Increment)
+                text("Homeserver:").size(FONT_SIZE).width(LABEL_WIDTH),
+                text_input("matrix.org", "matrix.org")
+                    .size(FONT_SIZE)
+                    .width(TEXTBOX_WIDTH),
+                button(
+                    image(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/res/search.png"
+                    ))
+                    .width(14)
+                )
+                .on_press(Message::Increment),
             ]
             .spacing(10)
             .align_y(Alignment::Center),
             rule::horizontal(1),
-            center_x(text("Login with password:").size(12)),
+            center_x(text("Login with password:").size(FONT_SIZE)),
             row![
-                text("Username:").size(12),
-                text_input("Username", "").size(12)
+                text("Username:").size(FONT_SIZE).width(LABEL_WIDTH),
+                text_input("Username", "")
+                    .size(FONT_SIZE)
+                    .width(TEXTBOX_WIDTH)
             ]
             .spacing(10)
             .align_y(Alignment::Center),
             row![
-                text("Password:").size(12),
-                text_input("Password", "").size(12),
-                button(text("👁").size(12)).on_press(Message::Increment)
+                text("Password:").size(FONT_SIZE).width(LABEL_WIDTH),
+                text_input("Password", "")
+                    .size(FONT_SIZE)
+                    .width(TEXTBOX_WIDTH),
+                button(
+                    image(concat!(env!("CARGO_MANIFEST_DIR"), "/res/eye.png"))
+                        .width(14)
+                )
+                .on_press(Message::Increment)
             ]
             .spacing(10)
             .align_y(Alignment::Center),
             center_x(
-                button(text("Login").size(12)).on_press(Message::Increment)
+                button(text("Login").size(FONT_SIZE))
+                    .on_press(Message::Increment)
             ),
             rule::horizontal(1),
-            center_x(text("Login with SSO:").size(12)),
+            center_x(text("Login with SSO:").size(FONT_SIZE)),
             center_x(
-                button(text("Open in browser").size(12))
+                button(text("Open in browser").size(FONT_SIZE))
                     .on_press(Message::Increment)
             ),
             // The increment button. We tell it to produce an
@@ -80,9 +104,9 @@ impl Counter {
             // `Decrement` message when pressed
             // button("-").on_press(Message::Decrement),
         ]
-        .max_width(350)
-        .height(370)
-        .spacing(10)
+        .max_width(MODAL_WIDTH)
+        .height(MODAL_HEIGHT)
+        .spacing(15)
         .padding(10)
         .into();
 
