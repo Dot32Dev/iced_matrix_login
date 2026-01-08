@@ -145,6 +145,11 @@ impl Counter {
                             width: 1.0,
                             color: palette.background.strong.color,
                         },
+                        shadow: iced::Shadow {
+                            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+                            blur_radius: 0.0,
+                            offset: iced::Vector { x: 10.0, y: 10.0 },
+                        },
                         ..Default::default()
                     }
                 }),
