@@ -186,13 +186,11 @@ impl App {
         match self.homeserver_state {
             HomeserverState::Idle => (),
             HomeserverState::Connecting => {
-                items.push(
-                    text("Connecting to homeserver").size(FONT_SIZE).into(),
-                );
+                items.push(text("Constructing client").size(FONT_SIZE).into());
             }
             HomeserverState::GettingAuthTypes => {
                 items.push(
-                    text("Requesting available login methods")
+                    text("Requesting available login methods from homeserver")
                         .size(FONT_SIZE)
                         .into(),
                 );
@@ -311,11 +309,11 @@ impl App {
 async fn connect_to_client(hostname: String) -> Result<Client, String> {
     let homeserver_address = format!("https://{}", hostname);
     let Ok(homeserver_url) = Url::parse(&homeserver_address) else {
-        return Err("Failed to parase URL".to_string());
+        return Err("Failed to parase homeserver URL".to_string());
     };
 
     let Ok(client) = Client::new(homeserver_url).await else {
-        return Err("Could not connect to homeserver".to_string());
+        return Err("Could not create client".to_string());
     };
 
     Ok(client)
@@ -323,9 +321,11 @@ async fn connect_to_client(hostname: String) -> Result<Client, String> {
 
 async fn get_auth_types(client: Client) -> Result<AuthTypes, String> {
     let Ok(login_types) = client.matrix_auth().get_login_types().await else {
-        return Err(
-            "Could not retrieve login methods from homeserver".to_string()
-        );
+        return Err(format!(
+            "{} \n\n{}",
+            "Could not retrieve login methods from homeserver.",
+            "Check the spelling of the homeserver and your internet connection."
+        ));
     };
 
     let mut auth_types = AuthTypes {
