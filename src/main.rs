@@ -182,23 +182,27 @@ impl App {
         match self.homeserver_state {
             HomeserverState::Idle => (),
             HomeserverState::Connecting => {
-                items.push(text("Constructing client").size(FONT_SIZE).into());
                 items.push(
-                    Spinner::new()
-                        .cycle_duration(Duration::from_secs_f32(1.0))
-                        .into(),
+                    row![
+                        text("Constructing Client").size(FONT_SIZE),
+                        Spinner::new()
+                            .cycle_duration(Duration::from_secs_f32(1.0))
+                    ]
+                    .spacing(10)
+                    .align_y(Alignment::Center)
+                    .into(),
                 );
             }
             HomeserverState::GettingAuthTypes => {
                 items.push(
-                    text("Requesting available login methods from homeserver")
-                        .size(FONT_SIZE)
-                        .into(),
-                );
-                items.push(
-                    Spinner::new()
-                        .cycle_duration(Duration::from_secs_f32(1.0))
-                        .into(),
+                    row![
+                        text("Fetching authentication options").size(FONT_SIZE),
+                        Spinner::new()
+                            .cycle_duration(Duration::from_secs_f32(1.0))
+                    ]
+                    .spacing(10)
+                    .align_y(Alignment::Center)
+                    .into(),
                 );
             }
             HomeserverState::Error(ref error) => {
@@ -315,7 +319,7 @@ impl App {
 async fn connect_to_client(hostname: String) -> Result<Client, String> {
     let homeserver_address = format!("https://{}", hostname);
     let Ok(homeserver_url) = Url::parse(&homeserver_address) else {
-        return Err("Failed to parase homeserver URL".to_string());
+        return Err("Failed to parse homeserver URL".to_string());
     };
 
     let Ok(client) = Client::new(homeserver_url).await else {
