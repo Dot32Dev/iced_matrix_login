@@ -1,3 +1,5 @@
+mod loading_spinner;
+
 use iced::Alignment;
 use iced::Background;
 use iced::Color;
@@ -5,8 +7,6 @@ use iced::Element;
 use iced::Length;
 use iced::Task;
 use iced::Theme;
-use iced::window;
-
 use iced::widget::Column;
 use iced::widget::button;
 use iced::widget::center_x;
@@ -18,15 +18,11 @@ use iced::widget::rule;
 use iced::widget::scrollable;
 use iced::widget::text;
 use iced::widget::text_input;
-
+use iced::window;
+use loading_spinner::Spinner;
 use matrix_sdk::Client;
-// use matrix_sdk::Room;
-// use matrix_sdk::RoomState;
-// use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType;
-// use matrix_sdk::ruma::events::room::message::MessageType;
-// use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
-
+use std::time::Duration;
 use url::Url;
 
 const FONT_SIZE: u32 = 13;
@@ -68,7 +64,7 @@ pub enum Message {
     UsernameInput(String),
     PasswordInput(String),
     ToggleHiddenPassword,
-    ClientConnecton(Result<Client, String>),
+    ClientCreated(Result<Client, String>),
     AuthTypes(Result<AuthTypes, String>),
 }
 
@@ -116,10 +112,10 @@ impl App {
                 self.homeserver_state = HomeserverState::Connecting;
                 return Task::perform(
                     connect_to_client(self.hostname.clone()),
-                    Message::ClientConnecton,
+                    Message::ClientCreated,
                 );
             }
-            Message::ClientConnecton(result) => match result {
+            Message::ClientCreated(result) => match result {
                 Ok(client) => {
                     // self.client = Some(client)
                     self.homeserver_state = HomeserverState::GettingAuthTypes;
@@ -187,11 +183,21 @@ impl App {
             HomeserverState::Idle => (),
             HomeserverState::Connecting => {
                 items.push(text("Constructing client").size(FONT_SIZE).into());
+                items.push(
+                    Spinner::new()
+                        .cycle_duration(Duration::from_secs_f32(1.0))
+                        .into(),
+                );
             }
             HomeserverState::GettingAuthTypes => {
                 items.push(
                     text("Requesting available login methods from homeserver")
                         .size(FONT_SIZE)
+                        .into(),
+                );
+                items.push(
+                    Spinner::new()
+                        .cycle_duration(Duration::from_secs_f32(1.0))
                         .into(),
                 );
             }
