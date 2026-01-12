@@ -30,6 +30,7 @@ const MODAL_WIDTH: f32 = 350.0;
 const MODAL_HEIGHT: f32 = 370.0;
 const LABEL_WIDTH: f32 = 75.0;
 const TEXTBOX_WIDTH: f32 = 200.0;
+const APP_NAME: &str = "Iced Matrix Client";
 
 #[derive(Default)]
 struct App {
@@ -38,7 +39,7 @@ struct App {
     password: String,
     password_visible: bool,
     homeserver_state: HomeserverState,
-    // client: Option<Client>,
+    client: Option<Client>,
 }
 
 #[derive(Clone)]
@@ -66,11 +67,14 @@ pub enum Message {
     ToggleHiddenPassword,
     ClientCreated(Result<Client, String>),
     AuthTypes(Result<AuthTypes, String>),
+    InitiatePasswordLogin,
+    InitiateSsoLogin,
+    LoginStatus(Result<(), String>),
 }
 
 fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
-        .title("Iced Matrix Login Test")
+        .title(APP_NAME)
         .window(window::Settings {
             maximized: true,
             ..Default::default()
@@ -88,6 +92,7 @@ impl App {
                 password: String::new(),
                 password_visible: false,
                 homeserver_state: HomeserverState::default(),
+                client: None,
             },
             Task::done(Message::HostnameSubmit),
         )
@@ -108,7 +113,6 @@ impl App {
                 self.password_visible = !self.password_visible;
             }
             Message::HostnameSubmit => {
-                println!("Hostname submit");
                 self.homeserver_state = HomeserverState::Connecting;
                 return Task::perform(
                     connect_to_client(self.hostname.clone()),
@@ -117,7 +121,7 @@ impl App {
             }
             Message::ClientCreated(result) => match result {
                 Ok(client) => {
-                    // self.client = Some(client)
+                    self.client = Some(client.clone());
                     self.homeserver_state = HomeserverState::GettingAuthTypes;
                     return Task::perform(
                         get_auth_types(client),
@@ -137,6 +141,9 @@ impl App {
                     self.homeserver_state = HomeserverState::Error(error)
                 }
             },
+            Message::InitiatePasswordLogin => (),
+            Message::InitiateSsoLogin => (),
+            Message::LoginStatus(result) => (),
         }
 
         Task::none()
@@ -255,7 +262,11 @@ impl App {
                     );
 
                     items.push(
-                        center_x(button(text("Login").size(FONT_SIZE))).into(),
+                        center_x(
+                            button(text("Login").size(FONT_SIZE))
+                                .on_press(Message::InitiatePasswordLogin),
+                        )
+                        .into(),
                     );
                     if auth_types.sso {
                         items.push(rule::horizontal(1).into());
@@ -267,9 +278,9 @@ impl App {
                             .into(),
                     );
                     items.push(
-                        center_x(button(
-                            text("Open in browser").size(FONT_SIZE),
-                        ))
+                        center_x(
+                            button(text("Open in browser").size(FONT_SIZE)), // .on_press(Message::InitiateSsoLogin),
+                        )
                         .into(),
                     );
                 }
@@ -354,4 +365,20 @@ async fn get_auth_types(client: Client) -> Result<AuthTypes, String> {
         }
     }
     Ok(auth_types)
+}
+
+async fn login_with_password(
+    client: Client,
+    username: &str,
+    password: &str,
+) -> Result<(), String> {
+    match client
+        .matrix_auth()
+        .login_username(&username, &password)
+        .initial_device_display_name(APP_NAME)
+        .await
+    {
+        Ok(_response) => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
