@@ -1,75 +1,82 @@
+mod chat;
 mod loading_spinner;
+mod login;
+mod restore;
 
-use iced::Alignment;
-use iced::Background;
-use iced::Color;
-use iced::Element;
-use iced::Length;
 use iced::Task;
 use iced::Theme;
-use iced::widget::Column;
-use iced::widget::button;
-use iced::widget::center_x;
-use iced::widget::center_y;
-use iced::widget::container;
-use iced::widget::image;
-use iced::widget::row;
-use iced::widget::rule;
-use iced::widget::scrollable;
-use iced::widget::text;
-use iced::widget::text_input;
 use iced::window;
-use loading_spinner::Spinner;
-use matrix_sdk::Client;
-use matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType;
-use std::time::Duration;
-use url::Url;
 
-const FONT_SIZE: u32 = 13;
-const MODAL_WIDTH: f32 = 350.0;
-const MODAL_HEIGHT: f32 = 370.0;
-const LABEL_WIDTH: f32 = 75.0;
-const TEXTBOX_WIDTH: f32 = 200.0;
-const APP_NAME: &str = "Iced Matrix Client";
+pub const APP_NAME: &str = "Iced Matrix Client";
 
-#[derive(Default)]
+enum Screen {
+    Restore(restore::App),
+    Login(login::App),
+    Chat(chat::App),
+}
+
+#[derive(Clone)]
+enum Message {
+    Restore(restore::Message),
+    Login(login::Message),
+    Chat(chat::Message),
+}
+
 struct App {
-    hostname: String,
-    username: String,
-    password: String,
-    password_visible: bool,
-    homeserver_state: HomeserverState,
-    client: Option<Client>,
+    screen: Screen,
 }
 
-#[derive(Clone)]
-pub struct AuthTypes {
-    password: bool,
-    sso: bool,
-}
+impl App {
+    fn new() -> Self {
+        Self {
+            screen: Screen::Login(login::App::new()),
+        }
+    }
 
-#[derive(Default, Clone)]
-enum HomeserverState {
-    #[default]
-    Idle,
-    Connecting,
-    GettingAuthTypes,
-    AuthTypes(AuthTypes),
-    Error(String),
-}
+    fn view(&self) -> iced::Element<'_, Message> {
+        match &self.screen {
+            Screen::Restore(restore) => restore.view().map(Message::Restore),
+            Screen::Login(login) => login.view().map(Message::Login),
+            Screen::Chat(chat) => chat.view().map(Message::Chat),
+        }
+    }
 
-#[derive(Clone)]
-pub enum Message {
-    HostnameInput(String),
-    HostnameSubmit,
-    UsernameInput(String),
-    PasswordInput(String),
-    ToggleHiddenPassword,
-    ClientCreated(Result<Client, String>),
-    AuthTypes(Result<AuthTypes, String>),
-    InitiatePasswordLogin,
-    InitiateSsoLogin,
-    LoginStatus(Result<(), String>),
+    fn update(&mut self, message: Message) -> iced::Task<Message> {
+        match (&mut self.screen, message) {
+            (Screen::Restore(restore), Message::Restore(msg)) => {
+                let action = restore.update(msg);
+                match action {
+                    restore::Action::None => (),
+                    restore::Action::Task(task) => {
+                        return task.map(Message::Restore);
+                    }
+                }
+            }
+            (Screen::Login(login), Message::Login(msg)) => {
+                match login.update(msg) {
+                    login::Action::None => (),
+                    login::Action::Task(task) => {
+                        return task.map(Message::Login);
+                    }
+                    login::Action::LoggedIn(client) => {
+                        todo!();
+                    }
+                }
+            }
+            (Screen::Chat(chat), Message::Chat(msg)) => {
+                let action = chat.update(msg);
+                match action {
+                    chat::Action::None => (),
+                    chat::Action::Task(task) => {
+                        return task.map(Message::Chat);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        Task::none()
+    }
 }
 
 fn main() -> iced::Result {
@@ -81,304 +88,4 @@ fn main() -> iced::Result {
         })
         .theme(Theme::Dark)
         .run()
-}
-
-impl App {
-    pub fn new() -> (Self, Task<Message>) {
-        (
-            Self {
-                hostname: String::from("matrix.org"),
-                username: String::new(),
-                password: String::new(),
-                password_visible: false,
-                homeserver_state: HomeserverState::default(),
-                client: None,
-            },
-            Task::done(Message::HostnameSubmit),
-        )
-    }
-
-    pub fn update(&mut self, message: Message) -> iced::Task<Message> {
-        match message {
-            Message::HostnameInput(string) => {
-                self.hostname = string;
-            }
-            Message::UsernameInput(string) => {
-                self.username = string;
-            }
-            Message::PasswordInput(string) => {
-                self.password = string;
-            }
-            Message::ToggleHiddenPassword => {
-                self.password_visible = !self.password_visible;
-            }
-            Message::HostnameSubmit => {
-                self.homeserver_state = HomeserverState::Connecting;
-                return Task::perform(
-                    connect_to_client(self.hostname.clone()),
-                    Message::ClientCreated,
-                );
-            }
-            Message::ClientCreated(result) => match result {
-                Ok(client) => {
-                    self.client = Some(client.clone());
-                    self.homeserver_state = HomeserverState::GettingAuthTypes;
-                    return Task::perform(
-                        get_auth_types(client),
-                        Message::AuthTypes,
-                    );
-                }
-                Err(error) => {
-                    self.homeserver_state = HomeserverState::Error(error)
-                }
-            },
-            Message::AuthTypes(result) => match result {
-                Ok(auth_types) => {
-                    self.homeserver_state =
-                        HomeserverState::AuthTypes(auth_types)
-                }
-                Err(error) => {
-                    self.homeserver_state = HomeserverState::Error(error)
-                }
-            },
-            Message::InitiatePasswordLogin => (),
-            Message::InitiateSsoLogin => (),
-            Message::LoginStatus(result) => (),
-        }
-
-        Task::none()
-    }
-
-    pub fn view(&self) -> Element<'_, Message> {
-        let submit_hostname_button = button(
-            image(concat!(env!("CARGO_MANIFEST_DIR"), "/res/search.png"))
-                .width(14),
-        );
-        let hostname_textbox = text_input("Homeserver", &self.hostname)
-            .on_input(Message::HostnameInput)
-            .size(FONT_SIZE)
-            .width(TEXTBOX_WIDTH);
-
-        let mut items: Vec<Element<Message>> = Vec::new();
-
-        items.push(center_x(text("Login").size(20)).into());
-        items.push(
-            row![
-                text("Homeserver:").size(FONT_SIZE).width(LABEL_WIDTH),
-                match self.homeserver_state {
-                    HomeserverState::Connecting
-                    | HomeserverState::GettingAuthTypes =>
-                        hostname_textbox,
-                    _ => hostname_textbox
-                        .on_submit(Message::HostnameSubmit),
-                },
-                match self.homeserver_state {
-                    HomeserverState::Connecting
-                    | HomeserverState::GettingAuthTypes =>
-                        submit_hostname_button,
-                    _ => submit_hostname_button
-                        .on_press(Message::HostnameSubmit),
-                }
-            ]
-            .spacing(10)
-            .align_y(Alignment::Center)
-            .into(),
-        );
-        items.push(rule::horizontal(1).into());
-
-        match self.homeserver_state {
-            HomeserverState::Idle => (),
-            HomeserverState::Connecting => {
-                items.push(
-                    row![
-                        text("Constructing Client").size(FONT_SIZE),
-                        Spinner::new()
-                            .cycle_duration(Duration::from_secs_f32(1.0))
-                    ]
-                    .spacing(10)
-                    .align_y(Alignment::Center)
-                    .into(),
-                );
-            }
-            HomeserverState::GettingAuthTypes => {
-                items.push(
-                    row![
-                        text("Fetching authentication options").size(FONT_SIZE),
-                        Spinner::new()
-                            .cycle_duration(Duration::from_secs_f32(1.0))
-                    ]
-                    .spacing(10)
-                    .align_y(Alignment::Center)
-                    .into(),
-                );
-            }
-            HomeserverState::Error(ref error) => {
-                items.push(text(error).size(FONT_SIZE).into());
-            }
-            HomeserverState::AuthTypes(ref auth_types) => {
-                if auth_types.password {
-                    items.push(
-                        center_x(text("Login with password:").size(FONT_SIZE))
-                            .into(),
-                    );
-                    // Username box
-                    items.push(
-                        row![
-                            text("Username:")
-                                .size(FONT_SIZE)
-                                .width(LABEL_WIDTH),
-                            text_input("Username", &self.username)
-                                .on_input(Message::UsernameInput)
-                                .size(FONT_SIZE)
-                                .width(TEXTBOX_WIDTH)
-                        ]
-                        .spacing(10)
-                        .align_y(Alignment::Center)
-                        .into(),
-                    );
-                    // Password box
-                    items.push(
-                        row![
-                            text("Password:")
-                                .size(FONT_SIZE)
-                                .width(LABEL_WIDTH),
-                            text_input("Password", &self.password)
-                                .on_input(Message::PasswordInput)
-                                .size(FONT_SIZE)
-                                .secure(!self.password_visible)
-                                .width(TEXTBOX_WIDTH),
-                            button(
-                                image(concat!(
-                                    env!("CARGO_MANIFEST_DIR"),
-                                    "/res/eye.png"
-                                ))
-                                .width(14)
-                            )
-                            .on_press(Message::ToggleHiddenPassword)
-                        ]
-                        .spacing(10)
-                        .align_y(Alignment::Center)
-                        .into(),
-                    );
-
-                    items.push(
-                        center_x(
-                            button(text("Login").size(FONT_SIZE))
-                                .on_press(Message::InitiatePasswordLogin),
-                        )
-                        .into(),
-                    );
-                    if auth_types.sso {
-                        items.push(rule::horizontal(1).into());
-                    }
-                }
-                if auth_types.sso {
-                    items.push(
-                        center_x(text("Login with SSO:").size(FONT_SIZE))
-                            .into(),
-                    );
-                    items.push(
-                        center_x(
-                            button(text("Open in browser").size(FONT_SIZE)), // .on_press(Message::InitiateSsoLogin),
-                        )
-                        .into(),
-                    );
-                }
-            }
-        };
-
-        let content = Column::with_children(items)
-            .max_width(MODAL_WIDTH)
-            .height(MODAL_HEIGHT)
-            .spacing(15)
-            .padding(10);
-
-        container(center_x(center_y(container(
-            container(scrollable(content))
-                .width(Length::Shrink)
-                .height(Length::Shrink)
-                .style(|theme| {
-                    let palette = theme.extended_palette();
-                    container::Style {
-                        background: Some(Background::Color(
-                            palette.background.base.color,
-                        )),
-                        border: iced::Border {
-                            radius: 5.0.into(),
-                            width: 1.0,
-                            color: palette.background.strong.color,
-                        },
-                        shadow: iced::Shadow {
-                            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
-                            blur_radius: 0.0,
-                            offset: iced::Vector { x: 10.0, y: 10.0 },
-                        },
-                        ..Default::default()
-                    }
-                }),
-        ))))
-        .style(|_theme| container::Style {
-            background: Some(Background::Color(Color::from_linear_rgba(
-                0.0, 0.0, 0.0, 0.2,
-            ))),
-            ..Default::default()
-        })
-        .into()
-    }
-}
-
-async fn connect_to_client(hostname: String) -> Result<Client, String> {
-    let homeserver_address = format!("https://{}", hostname);
-    let Ok(homeserver_url) = Url::parse(&homeserver_address) else {
-        return Err("Failed to parse homeserver URL".to_string());
-    };
-
-    let Ok(client) = Client::new(homeserver_url).await else {
-        return Err("Could not create client".to_string());
-    };
-
-    Ok(client)
-}
-
-async fn get_auth_types(client: Client) -> Result<AuthTypes, String> {
-    let Ok(login_types) = client.matrix_auth().get_login_types().await else {
-        return Err(format!(
-            "{} \n\n{}",
-            "Could not retrieve login methods from homeserver.",
-            "Check the spelling of the homeserver and your internet connection."
-        ));
-    };
-
-    let mut auth_types = AuthTypes {
-        password: false,
-        sso: false,
-    };
-    for login_type in login_types.flows {
-        match login_type {
-            LoginType::Password(_) => auth_types.password = true,
-            LoginType::Sso(sso) => {
-                if sso.identity_providers.is_empty() {
-                    auth_types.sso = true;
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(auth_types)
-}
-
-async fn login_with_password(
-    client: Client,
-    username: &str,
-    password: &str,
-) -> Result<(), String> {
-    match client
-        .matrix_auth()
-        .login_username(&username, &password)
-        .initial_device_display_name(APP_NAME)
-        .await
-    {
-        Ok(_response) => Ok(()),
-        Err(error) => Err(error.to_string()),
-    }
 }
